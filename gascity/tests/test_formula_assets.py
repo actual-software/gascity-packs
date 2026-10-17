@@ -4932,6 +4932,43 @@ description = "Override sink that writes the base triage report contract."
             self.assertIn("trace.upstream[0].hash", changed.stderr)
             self.assertIn("actual sha256:", changed.stderr)
 
+    def test_build_artifact_check_resolves_sha256_for_absolute_artifact_without_root_env(self) -> None:
+        import hashlib
+
+        source_root = pathlib.Path(__file__).resolve().parents[1]
+        for installed in (False, True):
+            with self.subTest(installed=installed), tempfile.TemporaryDirectory() as td:
+                root = pathlib.Path(td)
+                artifact = self._write_requirements(root)
+                upstream = root / "request.md"
+                upstream.write_bytes(b"approved request")
+                digest = hashlib.sha256(upstream.read_bytes()).hexdigest()
+                artifact.write_text(
+                    self._valid_requirements_artifact().replace("git:request-revision", "sha256:" + digest),
+                    encoding="utf-8",
+                )
+                beads = self._relative_requirements_beads()
+                beads["root"] = beads["root"].replace(".gc/inference-gate/requirements.md", str(artifact))
+                env = {
+                    **self._CONTROLLER_ENV_CLEARED,
+                    "GC_STORE_PATH": "",
+                    "GC_WORK_DIR": str(source_root.parent if installed else root),
+                }
+                valid = self._run_build_artifact_check(
+                    beads, "loop", extra_env=env, script_root=root if installed else None
+                )
+                self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
+                upstream.write_bytes(b"changed request")
+                changed = self._run_build_artifact_check(
+                    beads,
+                    "loop",
+                    extra_env=env,
+                    script=root / ".gc/scripts/checks/build-artifact-valid.sh" if installed else None,
+                )
+                self.assertNotEqual(changed.returncode, 0)
+                self.assertIn("actual sha256:", changed.stderr)
+
     def test_build_artifact_check_resolves_relative_path_from_rig_root(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = pathlib.Path(td)

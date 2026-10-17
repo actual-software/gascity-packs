@@ -155,6 +155,12 @@ done
 
 UPSTREAM_ARGS=(--verify-absolute-upstreams)
 UPSTREAM_ROOT="${ARTIFACT_ROOT:-${GC_RIG_ROOT:-${GC_BEADS_SCOPE_ROOT:-${GC_DIR:-${GC_STORE_PATH:-}}}}}"
+if [ -z "$UPSTREAM_ROOT" ]; then
+  case "$SCRIPT_DIR" in
+    */.gc/scripts/checks) UPSTREAM_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)" ;;
+    *) UPSTREAM_ROOT="${GC_WORK_DIR:-}" ;;
+  esac
+fi
 if [ -n "$UPSTREAM_ROOT" ]; then
   UPSTREAM_ARGS+=(--upstream-root "$UPSTREAM_ROOT")
 fi
